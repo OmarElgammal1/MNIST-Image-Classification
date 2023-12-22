@@ -1,3 +1,4 @@
+# import necessary libraries
 import numpy as np
 # to compute gaussian kernel
 from scipy.spatial import distance
@@ -10,7 +11,8 @@ class SVM:
     gaussian = lambda x, x_, c = 0.5: np.exp(-c * distance.cdist(x,x_,'sqeuclidean'))
     kernels = {'linear':linear, 'polynomial':polynomial, 'gaussian':gaussian}
 
-    def __init__(self, kernel = 'polynomial', C = 1, k = 1) :
+    def __init__(self, kernel = 'linear', C = 1, k = 1) :
+        self.kernel_str = kernel
         # define kernel
         self.kernel = SVM.kernels[kernel]
         # define regularization hyperparameter
@@ -28,11 +30,11 @@ class SVM:
         # check whether it is binary classification or not
         if len(np.unique(y)) > 2:
             self.multiclass = True
-            self.multi_fit(X, y)
+            return self.multi_fit(X, y)
+            
         # make sure that y is {-1,1}
         if set(np.unique(y)) == {0,1}:
             y[y == 0] = -1
-
 
         self.y = y.reshape(-1, 1).astype(np.double)
         self.X = X
@@ -60,7 +62,9 @@ class SVM:
         self.margin_sv = np.argmax((0 < self.alpha-1e-3)&(self.alpha < self.C-1e-3))
 
     def predict(self, x_t):
-        if self.multiclass: return self.multi_predict(x_t)
+        if self.multiclass: 
+            return self.multi_predict(x_t)
+
         # calculate (x_s, y_s) to used in calculation of b
         x_s, y_s = self.X[self.margin_sv, np.newaxis], self.y[self.margin_sv, np.newaxis]
         # compute support vectors
@@ -73,3 +77,33 @@ class SVM:
         prediction = np.sum(alpha_s * y * self.kernel(X, x_t, self.k), axis=0) + b
 
         return np.sign(prediction).astype(int), prediction
+    
+    def multi_fit(self, X, y):
+
+        # number of classes
+        self.k = len(np.unique(y))
+        
+        # for each pair of these classes (1 vs many classifiers)
+        for i in range(self.k):
+            X_s, y_s = X, copy.copy(y)
+
+            # make sure that y is {-1,1}
+            # ith class will be 1 and all other classes will be -1
+            y_s[y_s != i], y_s[y_s == i] = -1, 1
+            clf = SVM(kernel=self.kernel_str, C=self.C, k=self.k)
+            clf.fit(X_s, y_s)
+            
+            # save classifier
+            self.clfs.append(clf)
+
+
+    def multi_predict(self, X):
+        N = X.shape[0]
+
+        predictions = np.zeros((N, self.k))
+
+        for i, clf in enumerate(self.clfs):
+            predictions[:, i] = clf.predict(X)[1]
+
+        return np.argmax(predictions, axis=1), np.max(predictions, axis=1)
+
