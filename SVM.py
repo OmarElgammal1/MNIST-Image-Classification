@@ -30,7 +30,7 @@ class SVM:
             self.multiclass = True
             self.multi_fit(X, y)
         # make sure that y is {-1,1}
-        if np.unique(y) == {0,1}:
+        if set(np.unique(y)) == {0,1}:
             y[y == 0] = -1
 
 
@@ -43,16 +43,16 @@ class SVM:
 
         # define optimization parameters
         P = cvxopt.matrix(self.y @ self.y.T * self.K)
-        q = cvxopt.matrix(-np.ones(N,1))
+        q = cvxopt.matrix(-np.ones((N,1)))
         A = cvxopt.matrix(self.y.T)
         b = cvxopt.matrix(np.zeros(1))
         G = cvxopt.matrix(np.vstack((-np.identity(N), np.identity(N))))
-        h = cvxopt.matrix(np.vstack((np.zeros(N), np.ones(N) * self.C)))
+        h = cvxopt.matrix(np.vstack((np.zeros((N,1)), np.ones((N,1)) * self.C)))
 
         # solve optimization problem
         cvxopt.solvers.options['show_progress'] = False
         sol = cvxopt.solvers.qp(P=P, q=q, G=G, h=h, A=A, b=b)
-        self.alpha = sol['x']
+        self.alpha = np.array(sol['x'])
 
         # a Boolean array that flags points which are support vectors
         self.is_sv = ((self.alpha-1e-3 > 0)&(self.alpha <= self.C)).squeeze()
@@ -73,7 +73,3 @@ class SVM:
         prediction = np.sum(alpha_s * y * self.kernel(X, x_t, self.k), axis=0) + b
 
         return np.sign(prediction).astype(int), prediction
-
-
-
-
